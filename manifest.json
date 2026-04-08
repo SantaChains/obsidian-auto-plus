@@ -1,10 +1,10 @@
 {
-	"id": "auto-note-mover",
-	"name": "Auto Note Mover",
-	"version": "1.2.0",
-	"minAppVersion": "0.12.0",
-	"description": "Auto Note Mover will automatically move the active notes to their respective folders according to the rules.",
-	"author": "faru",
-	"authorUrl": "https://github.com/farux/",
+	"id": "obsidian-auto-plus",
+	"name": "Auto Plus",
+	"version": "2.1.0",
+	"minAppVersion": "0.15.0",
+	"description": "增强版自动笔记处理器，支持 YAML 属性判断、多种操作类型（移动/复制/删除/重命名）和灵活的规则配置。",
+	"author": "SantaChains",
+	"authorUrl": "https://github.com/SantaChains/",
 	"isDesktopOnly": false
 }

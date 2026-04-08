@@ -1,6 +1,9 @@
 import esbuild from "esbuild";
 import process from "process";
-import builtins from 'builtin-modules'
+import builtins from 'builtin-modules';
+import { execSync } from 'child_process';
+import fs from 'fs';
+import path from 'path';
 
 const banner =
 `/*
@@ -11,7 +14,14 @@ if you want to view the source, please visit the github repository of this plugi
 
 const prod = (process.argv[2] === 'production');
 
-esbuild.build({
+// ============================================
+// 构建后自动部署到目标目录（可选功能）
+// 如需启用，取消下面一行的注释：
+// const AUTO_DEPLOY = true;
+// ============================================
+const AUTO_DEPLOY = false;
+
+const context = await esbuild.context({
 	banner: {
 		js: banner,
 	},
@@ -21,32 +31,45 @@ esbuild.build({
 		'obsidian',
 		'electron',
 		'@codemirror/autocomplete',
-		'@codemirror/closebrackets',
 		'@codemirror/collab',
 		'@codemirror/commands',
-		'@codemirror/comment',
-		'@codemirror/fold',
-		'@codemirror/gutter',
-		'@codemirror/highlight',
-		'@codemirror/history',
 		'@codemirror/language',
 		'@codemirror/lint',
-		'@codemirror/matchbrackets',
-		'@codemirror/panel',
-		'@codemirror/rangeset',
-		'@codemirror/rectangular-selection',
 		'@codemirror/search',
 		'@codemirror/state',
-		'@codemirror/stream-parser',
-		'@codemirror/text',
-		'@codemirror/tooltip',
 		'@codemirror/view',
+		'@lezer/common',
+		'@lezer/highlight',
+		'@lezer/lr',
 		...builtins],
 	format: 'cjs',
-	watch: !prod,
-	target: 'es2016',
+	target: 'es2018',
 	logLevel: "info",
 	sourcemap: prod ? false : 'inline',
 	treeShaking: true,
 	outfile: 'main.js',
-}).catch(() => process.exit(1));
+});
+
+// 部署函数
+function deploy() {
+	if (!AUTO_DEPLOY) return;
+	
+	try {
+		console.log('\n[esbuild] 正在部署到 obsidian-auto-plus...');
+		execSync('node scripts/deploy.js', { stdio: 'inherit' });
+	} catch (error) {
+		console.error('[esbuild] 部署失败:', error.message);
+	}
+}
+
+if (prod) {
+	await context.rebuild();
+	deploy();
+	process.exit(0);
+} else {
+	await context.watch();
+	// 开发模式下每次构建完成后也触发部署
+	if (AUTO_DEPLOY) {
+		context.on('end', deploy);
+	}
+}

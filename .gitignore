@@ -1,5 +1,5 @@
 # vscode
-.vscode 
+.vscode/
 
 # Intellij
 *.iml
@@ -9,12 +9,38 @@
 node_modules
 package-lock.json
 
-# Don't include the compiled main.js file in the repo.
-# They should be uploaded to GitHub releases instead.
+# Build output
 main.js
-
-# Exclude sourcemaps
+styles.css
 *.map
 
-# obsidian
+# Obsidian plugin data
 data.json
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# Release artifacts (upload to GitHub releases instead)
+/dist
+/release
+
+# Git
+.git/
+.jj/
+.trae/
+.history/
+
+# GitHub
+.github
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
