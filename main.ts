@@ -73,9 +73,10 @@ export default class AutoNoteMover extends Plugin {
   }
 
   private registerCommands(): void {
+    // 注册全局移动命令
     this.addCommand({
       id: 'Move-the-note',
-      name: '移动笔记',
+      name: '移动当前笔记',
       checkCallback: (checking: boolean) => {
         const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (markdownView) {
@@ -87,6 +88,9 @@ export default class AutoNoteMover extends Plugin {
         return false;
       },
     });
+
+    // 为每个手动规则注册独立命令
+    this.registerManualRuleCommands();
 
     this.addCommand({
       id: 'Toggle-Auto-Manual',
@@ -108,6 +112,59 @@ export default class AutoNoteMover extends Plugin {
         return false;
       },
     });
+  }
+
+  /**
+   * 为所有手动触发模式的规则注册独立命令
+   */
+  private registerManualRuleCommands(): void {
+    const manualRules = this.settings.rules.filter(
+      r => r.enabled && r.triggerMode === 'manual'
+    );
+
+    for (const rule of manualRules) {
+      if (!rule.id) continue;
+
+      const commandId = `execute-rule-${rule.id}`;
+      const commandName = `执行规则: ${rule.name}`;
+
+      this.addCommand({
+        id: commandId,
+        name: commandName,
+        checkCallback: (checking: boolean) => {
+          const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
+          if (markdownView) {
+            if (!checking) {
+              this.executeManualRule(rule, markdownView.file);
+            }
+            return true;
+          }
+          return false;
+        },
+      });
+    }
+  }
+
+  /**
+   * 执行单个手动规则
+   */
+  private async executeManualRule(rule: Rule, file: TFile | null): Promise<void> {
+    if (!file) {
+      new Notice('没有打开的文件');
+      return;
+    }
+
+    const fileCache = this.app.metadataCache.getFileCache(file);
+    const results = this.ruleEngine.evaluateFile(file, fileCache);
+
+    // 只执行指定的手动规则
+    const targetResult = results.find(r => r.rule.id === rule.id && r.matched);
+
+    if (targetResult) {
+      await this.actionExecutor.execute({ rule, file, fileFullName: file.basename + '.' + file.extension });
+    } else {
+      new Notice(`规则 "${rule.name}" 不匹配当前文件`);
+    }
   }
 
   private setupStatusBar(): void {
@@ -132,7 +189,35 @@ export default class AutoNoteMover extends Plugin {
     const fileCache = this.app.metadataCache.getFileCache(file);
     if (isFmDisable(fileCache)) return;
 
-    this.processFile(file, fileCache);
+    // 只处理自动模式的规则
+    this.processFileWithAutoRules(file, fileCache);
+  }
+
+  /**
+   * 只处理自动触发模式的规则
+   */
+  private async processFileWithAutoRules(file: TFile, fileCache: CachedMetadata | null): Promise<void> {
+    const autoRules = this.settings.rules.filter(
+      r => r.enabled && (r.triggerMode === 'auto' || !r.triggerMode)
+    );
+
+    if (autoRules.length === 0) return;
+
+    // 临时设置只包含自动规则的规则引擎
+    const originalRules = this.settings.rules;
+    this.ruleEngine.setRules(autoRules);
+
+    const results = this.ruleEngine.evaluateFile(file, fileCache);
+
+    for (const result of results) {
+      if (result.matched) {
+        await this.actionExecutor.execute({ rule: result.rule, file, fileFullName: file.basename + '.' + file.extension });
+        if (!this.settings.allowMultipleActions) break;
+      }
+    }
+
+    // 恢复原始规则
+    this.ruleEngine.setRules(originalRules);
   }
 
   private handleRenameEvent(file: TAbstractFile, oldPath: string): void {

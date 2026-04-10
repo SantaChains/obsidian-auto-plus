@@ -15,6 +15,8 @@ import {
   YamlArrayMatchMode,
   YamlCondition,
   YamlKeyCondition,
+  YamlValue,
+  YamlValueOptions,
 } from './types';
 
 export interface EvaluatorOptions {
@@ -119,7 +121,21 @@ export class ConditionEvaluator {
       return cond.operator === 'notExists';
     }
 
-    const keyEntries = this.findMatchingKeys(frontmatter, cond);
+    // 支持嵌套路径，如 "metadata.author.name"
+    let targetFrontmatter = frontmatter;
+    let targetCond = cond;
+
+    if (cond.nestedPath) {
+      const nestedValue = this.getNestedValue(frontmatter, cond.nestedPath);
+      if (nestedValue === undefined) {
+        return cond.operator === 'notExists';
+      }
+      // 将嵌套值包装为 frontmatter 格式以便复用逻辑
+      targetFrontmatter = { __nested__: nestedValue };
+      targetCond = { ...cond, key: '__nested__' };
+    }
+
+    const keyEntries = this.findMatchingKeys(targetFrontmatter, targetCond);
 
     if (keyEntries.length === 0) {
       return cond.operator === 'notExists';
@@ -197,35 +213,218 @@ export class ConditionEvaluator {
     }
   }
 
-  private inferYamlType(value: unknown): YamlValueType {
-    if (value === null || value === undefined) return 'null';
-    if (typeof value === 'boolean') return 'boolean';
+  /**
+   * 增强的 YAML 类型推断 - 支持 Obsidian 所有属性类型
+   */
+  private inferYamlType(value: unknown, key?: string): YamlValueType {
+    if (value === null || value === undefined) return 'unknown';
+    if (typeof value === 'boolean') return 'checkbox';
     if (typeof value === 'number') return 'number';
-    if (Array.isArray(value)) return 'array';
-    return 'string';
+    if (Array.isArray(value)) {
+      // 根据 key 和数组内容推断具体类型
+      if (key === 'tags') return 'tags';
+      if (key === 'aliases') return 'aliases';
+      if (key === 'cssclasses') return 'list';
+      return 'list';
+    }
+    if (typeof value === 'string') {
+      // 尝试推断日期格式
+      if (this.isDateString(value)) return 'date';
+      if (this.isDateTimeString(value)) return 'datetime';
+      if (value.includes('\n')) return 'multitext';
+      return 'text';
+    }
+    return 'unknown';
+  }
+
+  /**
+   * 检查是否为日期字符串 (YYYY-MM-DD)
+   */
+  private isDateString(value: string): boolean {
+    return /^\d{4}-\d{2}-\d{2}$/.test(value);
+  }
+
+  /**
+   * 检查是否为日期时间字符串 (ISO 8601)
+   */
+  private isDateTimeString(value: string): boolean {
+    return /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/.test(value);
+  }
+
+  /**
+   * 解析日期字符串为 Date 对象
+   */
+  private parseDate(value: string): Date | null {
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? null : date;
+  }
+
+  /**
+   * 获取嵌套属性的值
+   */
+  private getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+    const keys = path.split('.');
+    let current: unknown = obj;
+
+    for (const key of keys) {
+      if (current === null || current === undefined) return undefined;
+      if (typeof current !== 'object') return undefined;
+      current = (current as Record<string, unknown>)[key];
+    }
+
+    return current;
   }
 
   private compareValueWithOperator(actualValue: unknown, cond: YamlCondition): boolean {
-    const inferredType = this.inferYamlType(actualValue);
-    const condValue = cond.value;
+    const inferredType = cond.valueType || this.inferYamlType(actualValue, cond.key);
+    const condValue = cond.value ?? null;
+    const options: YamlValueOptions = {
+      caseSensitive: false,
+      trimWhitespace: true,
+      fuzzyMatch: false,
+    };
 
-    if (inferredType === 'number' && typeof condValue === 'number') {
-      return this.compareNumeric(actualValue as number, cond.operator, condValue);
+    switch (inferredType) {
+      case 'number':
+        return this.compareNumericValue(actualValue, cond.operator, condValue);
+
+      case 'checkbox':
+        return this.compareBooleanValue(actualValue, cond.operator, condValue);
+
+      case 'date':
+      case 'datetime':
+        return this.compareDateValue(actualValue, cond.operator, condValue);
+
+      case 'list':
+      case 'tags':
+      case 'aliases':
+        return this.evaluateArrayCondition(actualValue as unknown[], cond);
+
+      case 'text':
+      case 'multitext':
+      default:
+        return this.compareTextValue(actualValue, cond.operator, condValue, options);
+    }
+  }
+
+  /**
+   * 比较数值
+   */
+  private compareNumericValue(actualValue: unknown, operator: YamlOperator, condValue: YamlValue | null): boolean {
+    const numValue = typeof actualValue === 'number' ? actualValue : parseFloat(String(actualValue));
+    const condNum = typeof condValue === 'number' ? condValue : parseFloat(String(condValue));
+
+    if (isNaN(numValue) || isNaN(condNum)) return false;
+
+    switch (operator) {
+      case 'equals': return numValue === condNum;
+      case 'notEquals': return numValue !== condNum;
+      case 'gt': return numValue > condNum;
+      case 'gte': return numValue >= condNum;
+      case 'lt': return numValue < condNum;
+      case 'lte': return numValue <= condNum;
+      case 'between':
+        if (Array.isArray(condValue) && condValue.length >= 2) {
+          const min = typeof condValue[0] === 'number' ? condValue[0] : parseFloat(String(condValue[0]));
+          const max = typeof condValue[1] === 'number' ? condValue[1] : parseFloat(String(condValue[1]));
+          return !isNaN(min) && !isNaN(max) && numValue >= min && numValue <= max;
+        }
+        return false;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * 比较布尔值
+   */
+  private compareBooleanValue(actualValue: unknown, operator: YamlOperator, condValue: YamlValue | null): boolean {
+    const boolValue = typeof actualValue === 'boolean' ? actualValue : String(actualValue).toLowerCase() === 'true';
+    const condBool = typeof condValue === 'boolean' ? condValue : String(condValue).toLowerCase() === 'true';
+
+    switch (operator) {
+      case 'equals': return boolValue === condBool;
+      case 'notEquals': return boolValue !== condBool;
+      case 'exists': return actualValue !== undefined && actualValue !== null;
+      case 'notExists': return actualValue === undefined || actualValue === null;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * 比较日期值
+   */
+  private compareDateValue(actualValue: unknown, operator: YamlOperator, condValue: YamlValue | null): boolean {
+    const actualDate = this.parseDate(String(actualValue));
+    const condDate = this.parseDate(String(condValue));
+
+    if (!actualDate || !condDate) return false;
+
+    // 对于纯日期比较，忽略时间部分
+    const actualTime = actualDate.getTime();
+    const condTime = condDate.getTime();
+
+    switch (operator) {
+      case 'equals': return actualTime === condTime;
+      case 'notEquals': return actualTime !== condTime;
+      case 'gt': return actualTime > condTime;
+      case 'gte': return actualTime >= condTime;
+      case 'lt': return actualTime < condTime;
+      case 'lte': return actualTime <= condTime;
+      case 'between':
+        if (Array.isArray(condValue) && condValue.length >= 2) {
+          const start = this.parseDate(String(condValue[0]));
+          const end = this.parseDate(String(condValue[1]));
+          if (start && end) {
+            return actualTime >= start.getTime() && actualTime <= end.getTime();
+          }
+        }
+        return false;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * 比较文本值
+   */
+  private compareTextValue(
+    actualValue: unknown,
+    operator: YamlOperator,
+    condValue: YamlValue | null,
+    options: YamlValueOptions
+  ): boolean {
+    let strValue = String(actualValue ?? '');
+    let condStr = String(condValue ?? '');
+
+    if (options.trimWhitespace) {
+      strValue = strValue.trim();
+      condStr = condStr.trim();
     }
 
-    if (inferredType === 'array') {
-      return this.evaluateArrayCondition(actualValue as unknown[], cond);
+    if (!options.caseSensitive) {
+      strValue = strValue.toLowerCase();
+      condStr = condStr.toLowerCase();
     }
 
-    if (inferredType === 'boolean' || inferredType === 'string') {
-      return this.compareScalarValue(actualValue, cond.operator, condValue);
+    switch (operator) {
+      case 'equals': return strValue === condStr;
+      case 'notEquals': return strValue !== condStr;
+      case 'contains': return strValue.includes(condStr);
+      case 'startsWith': return strValue.startsWith(condStr);
+      case 'endsWith': return strValue.endsWith(condStr);
+      case 'matches':
+        try {
+          const flags = options.regexFlags || '';
+          const regex = new RegExp(condStr, flags);
+          return regex.test(strValue);
+        } catch {
+          return false;
+        }
+      default:
+        return false;
     }
-
-    if (inferredType === 'null' && cond.operator === 'notExists') {
-      return true;
-    }
-
-    return false;
   }
 
   private compareNumeric(value: number, operator: YamlOperator, condValue: number): boolean {

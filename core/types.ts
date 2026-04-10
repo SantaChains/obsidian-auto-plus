@@ -42,7 +42,21 @@ export type YamlOperator =
 
 export type LogicOperator = 'AND' | 'OR';
 
-export type YamlValueType = 'boolean' | 'number' | 'string' | 'array' | 'null';
+// ============================================================================
+// YAML 值类型 - 完整支持 Obsidian 所有属性类型
+// ============================================================================
+
+export type YamlValueType =
+  | 'text'        // 单行文本
+  | 'list'        // 列表/数组
+  | 'number'      // 数字
+  | 'checkbox'    // 布尔值
+  | 'date'        // 日期 (YYYY-MM-DD)
+  | 'datetime'    // 日期时间 (ISO 8601)
+  | 'tags'        // 标签类型
+  | 'aliases'     // 别名类型
+  | 'multitext'   // 多行文本
+  | 'unknown';    // 未知类型
 
 export type KeyMatchMode = 'exact' | 'prefix' | 'suffix' | 'contains' | 'regex';
 
@@ -51,24 +65,42 @@ export type YamlArrayMatchMode = 'any' | 'all';
 export type SourceFolderMode = 'all' | 'include' | 'exclude';
 
 // ============================================================================
-// YAML 条件
+// YAML 条件 - 增强版，支持完整的值类型判断
 // ============================================================================
 
 export interface YamlKeyCondition {
   matchMode: KeyMatchMode;
   pattern: string;
   valueOperator?: YamlOperator;
-  value?: string | number | boolean;
+  value?: YamlValue;
+  valueType?: YamlValueType;
   arrayMatchMode?: YamlArrayMatchMode;
 }
+
+export type YamlValue = string | number | boolean | string[] | number[] | Date | null;
 
 export interface YamlCondition {
   key?: string;
   keyCondition?: YamlKeyCondition;
   operator: YamlOperator;
-  value?: string | number | boolean;
+  value?: YamlValue;
+  valueType?: YamlValueType;      // 期望的值类型
   arrayMatchMode?: YamlArrayMatchMode;
-  autoInferType?: boolean;
+  autoInferType?: boolean;        // 是否自动推断类型
+  nestedPath?: string;            // 嵌套路径，如 "metadata.author.name"
+}
+
+// ============================================================================
+// YAML 值判断选项
+// ============================================================================
+
+export interface YamlValueOptions {
+  caseSensitive?: boolean;        // 文本比较是否区分大小写
+  trimWhitespace?: boolean;       // 是否去除首尾空白
+  dateFormat?: string;            // 日期格式，如 "YYYY-MM-DD"
+  timezone?: string;              // 时区处理
+  fuzzyMatch?: boolean;           // 是否启用模糊匹配
+  regexFlags?: string;            // 正则表达式标志，如 "gi"
 }
 
 // ============================================================================
@@ -118,11 +150,25 @@ export interface ExcludeConfig {
 // 规则
 // ============================================================================
 
+// ============================================================================
+// 规则触发模式
+// ============================================================================
+
+export type RuleTriggerMode = 'auto' | 'manual' | 'scheduled';
+
+export interface RuleSchedule {
+  cron?: string;           // Cron 表达式，如 "0 9 * * 1" (每周一 9点)
+  interval?: number;       // 间隔分钟数
+  lastRun?: number;        // 上次运行时间戳
+}
+
 export interface Rule {
   id?: string;
   name: string;
   enabled: boolean;
   priority: number;
+  triggerMode: RuleTriggerMode;   // 触发模式: auto/manual/scheduled
+  schedule?: RuleSchedule;        // 定时配置
   conditions: Condition[];
   logicOperator: LogicOperator;
   action: ActionType;

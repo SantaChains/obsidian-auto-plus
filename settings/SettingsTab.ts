@@ -11,6 +11,7 @@ import { App, Notice, PluginSettingTab, Setting, ButtonComponent, DropdownCompon
 import AutoNoteMover from '../main';
 import { FolderSuggest, TagSuggest } from '../suggests/suggest';
 import { arrayMove } from '../utils/helpers';
+import { MultiValueInput, PathPatternEditor } from '../components/MultiValueInput';
 import {
   Rule,
   Condition,
@@ -287,7 +288,11 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
       await this.testSingleRule(rule);
     };
 
-    const deleteBtn = actions.createEl('button', { text: '×', cls: 'clickable-icon mod-warning' });
+    const deleteBtn = actions.createEl('button', {
+      cls: 'clickable-icon auto-plus-delete-btn',
+      attr: { 'aria-label': '删除规则' }
+    });
+    deleteBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>`;
     deleteBtn.title = '删除规则';
     deleteBtn.onclick = async (e) => {
       e.stopPropagation();
@@ -318,7 +323,8 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
   }
 
   private renderRuleEditor(container: HTMLElement, rule: Rule): void {
-    const nameSetting = new Setting(container)
+    // 规则名称
+    new Setting(container)
       .setName('规则名称')
       .addText((text) => {
         text.setPlaceholder('输入规则名称')
@@ -329,9 +335,91 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
           });
       });
 
+    // 触发模式选择
+    new Setting(container)
+      .setName('触发模式')
+      .setDesc('自动: 文件变更时自动执行 | 手动: 通过命令面板执行 | 定时: 按计划执行')
+      .addDropdown((dropDown) => {
+        dropDown
+          .addOption('auto', '🔄 自动')
+          .addOption('manual', '👆 手动')
+          .addOption('scheduled', '⏰ 定时')
+          .setValue(rule.triggerMode || 'auto')
+          .onChange(async (value: string) => {
+            rule.triggerMode = value as 'auto' | 'manual' | 'scheduled';
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    // 定时设置（仅定时模式显示）
+    if (rule.triggerMode === 'scheduled') {
+      this.renderScheduleSettings(container, rule);
+    }
+
+    // 手动模式提示
+    if (rule.triggerMode === 'manual') {
+      const manualHint = container.createDiv('manual-mode-hint');
+      manualHint.style.cssText = 'padding: 8px 12px; background: var(--background-secondary); border-radius: 6px; margin-bottom: 12px; font-size: 13px; color: var(--text-muted);';
+      manualHint.innerHTML = `💡 此规则已注册到 Obsidian 命令面板，可通过 <kbd>Ctrl+P</kbd> 搜索 "执行规则: ${rule.name}" 来触发`;
+    }
+
     this.renderConditionSection(container, rule);
     this.renderActionSection(container, rule);
     this.renderSourceFilterSection(container, rule);
+  }
+
+  private renderScheduleSettings(container: HTMLElement, rule: Rule): void {
+    const scheduleSection = container.createDiv('schedule-settings');
+    scheduleSection.style.cssText = 'padding: 12px; background: var(--background-secondary); border-radius: 8px; margin-bottom: 16px;';
+
+    if (!rule.schedule) {
+      rule.schedule = {};
+    }
+
+    new Setting(scheduleSection)
+      .setName('定时类型')
+      .addDropdown((dropDown) => {
+        dropDown
+          .addOption('interval', '固定间隔')
+          .addOption('cron', 'Cron 表达式')
+          .setValue(rule.schedule?.cron ? 'cron' : 'interval')
+          .onChange(async (value) => {
+            if (value === 'interval') {
+              rule.schedule!.cron = undefined;
+            } else {
+              rule.schedule!.interval = undefined;
+            }
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    if (!rule.schedule.cron) {
+      new Setting(scheduleSection)
+        .setName('间隔（分钟）')
+        .addText((text) => {
+          text.setPlaceholder('60')
+            .setValue(String(rule.schedule?.interval || ''))
+            .onChange(async (value) => {
+              const num = parseInt(value);
+              rule.schedule!.interval = isNaN(num) ? undefined : num;
+              await this.plugin.saveSettings();
+            });
+        });
+    } else {
+      new Setting(scheduleSection)
+        .setName('Cron 表达式')
+        .setDesc('格式: 分 时 日 月 周，如 "0 9 * * 1" 表示每周一 9点')
+        .addText((text) => {
+          text.setPlaceholder('0 9 * * 1')
+            .setValue(rule.schedule?.cron || '')
+            .onChange(async (value) => {
+              rule.schedule!.cron = value || undefined;
+              await this.plugin.saveSettings();
+            });
+        });
+    }
   }
 
   private renderConditionSection(container: HTMLElement, rule: Rule): void {
@@ -430,19 +518,27 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
 
   private renderConditionFields(container: HTMLElement, condition: Condition): void {
     switch (condition.type) {
-      case 'tag':
-        new Setting(container)
-          .setName('标签')
-          .addSearch((cb) => {
-            new TagSuggest(this.plugin.app, cb.inputEl);
-            cb.setPlaceholder('#标签 或 正则表达式')
-              .setValue(condition.tag || '')
-              .onChange(async (value) => {
-                condition.tag = value.trim();
-                await this.plugin.saveSettings();
-              });
-          });
+      case 'tag': {
+        const tagContainer = container.createDiv('multi-value-input-wrapper');
+        new Setting(container).setName('标签').setDesc('选择或输入标签，支持多个');
+
+        new MultiValueInput(
+          this.plugin.app,
+          tagContainer,
+          condition.tag ? [condition.tag] : [],
+          async (tags) => {
+            condition.tag = tags[0] || '';
+            await this.plugin.saveSettings();
+          },
+          {
+            suggestType: 'tag',
+            placeholder: '输入标签或选择...',
+            emptyText: '暂无标签，输入添加',
+            maxItems: 1,
+          }
+        );
         break;
+      }
 
       case 'title':
         new Setting(container)
@@ -476,19 +572,25 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
           });
         break;
 
-      case 'path':
-        new Setting(container)
-          .setName('路径正则')
-          .setDesc('匹配文件完整路径，如 ^content/drafts/')
-          .addText((text) => {
-            text.setPlaceholder('^content/drafts/')
-              .setValue(condition.pathPattern || '')
-              .onChange(async (value) => {
-                condition.pathPattern = value;
-                await this.plugin.saveSettings();
-              });
-          });
+      case 'path': {
+        const pathContainer = container.createDiv('path-pattern-editor-wrapper');
+        new Setting(container).setName('路径模式').setDesc('匹配文件完整路径');
+
+        new PathPatternEditor(
+          this.plugin.app,
+          pathContainer,
+          condition.pathPattern || '',
+          async (pattern) => {
+            condition.pathPattern = pattern;
+            await this.plugin.saveSettings();
+          },
+          {
+            placeholder: '输入路径模式，如: ^content/drafts/',
+            showPreview: true,
+          }
+        );
         break;
+      }
     }
   }
 
@@ -745,38 +847,24 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
           });
         });
 
-      (rule.sourceFilter.folders || []).forEach((folder, index) => {
-        const folderSetting = new Setting(section)
-          .addSearch((cb) => {
-            new FolderSuggest(this.plugin.app, cb.inputEl);
-            cb.setPlaceholder('文件夹路径')
-              .setValue(folder)
-              .onChange(async (value) => {
-                rule.sourceFilter!.folders![index] = value;
-                await this.plugin.saveSettings();
-              });
-          })
-          .addExtraButton((cb) => {
-            cb.setIcon('cross')
-              .setTooltip('删除')
-              .onClick(async () => {
-                rule.sourceFilter!.folders!.splice(index, 1);
-                await this.plugin.saveSettings();
-                this.display();
-              });
-          });
-        folderSetting.infoEl.remove();
-      });
+      // 使用新的多值输入组件
+      const foldersContainer = section.createDiv('multi-value-input-wrapper');
+      new Setting(section).setName('文件夹列表').setDesc('选择或输入文件夹路径');
 
-      new Setting(section)
-        .addButton((btn) => {
-          btn.setButtonText('+ 添加文件夹').setCta().onClick(async () => {
-            rule.sourceFilter!.folders = rule.sourceFilter!.folders || [];
-            rule.sourceFilter!.folders.push('');
-            await this.plugin.saveSettings();
-            this.display();
-          });
-        });
+      new MultiValueInput(
+        this.plugin.app,
+        foldersContainer,
+        rule.sourceFilter.folders || [],
+        async (folders) => {
+          rule.sourceFilter!.folders = folders;
+          await this.plugin.saveSettings();
+        },
+        {
+          suggestType: 'folder',
+          placeholder: '输入文件夹路径或选择...',
+          emptyText: '暂无文件夹，输入添加',
+        }
+      );
     }
   }
 
@@ -799,37 +887,24 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
         });
       });
 
-    new Setting(details)
-      .addButton((button) => {
-        button.setButtonText('+ 添加排除文件夹').setCta().onClick(async () => {
-          this.plugin.settings.globalExclude.folders.push('');
-          await this.plugin.saveSettings();
-          this.display();
-        });
-      });
+    // 使用多值输入组件
+    const excludeContainer = details.createDiv('multi-value-input-wrapper');
+    new Setting(details).setName('排除的文件夹').setDesc('这些文件夹中的文件将被忽略');
 
-    this.plugin.settings.globalExclude.folders.forEach((folder, index) => {
-      const setting = new Setting(details)
-        .addSearch((cb) => {
-          new FolderSuggest(this.plugin.app, cb.inputEl);
-          cb.setPlaceholder('文件夹路径')
-            .setValue(folder)
-            .onChange(async (value) => {
-              this.plugin.settings.globalExclude.folders[index] = value;
-              await this.plugin.saveSettings();
-            });
-        })
-        .addExtraButton((cb) => {
-          cb.setIcon('cross')
-            .setTooltip('删除')
-            .onClick(async () => {
-              this.plugin.settings.globalExclude.folders.splice(index, 1);
-              await this.plugin.saveSettings();
-              this.display();
-            });
-        });
-      setting.infoEl.remove();
-    });
+    new MultiValueInput(
+      this.plugin.app,
+      excludeContainer,
+      this.plugin.settings.globalExclude.folders,
+      async (folders) => {
+        this.plugin.settings.globalExclude.folders = folders;
+        await this.plugin.saveSettings();
+      },
+      {
+        suggestType: 'folder',
+        placeholder: '输入要排除的文件夹...',
+        emptyText: '暂无排除文件夹',
+      }
+    );
   }
 
   private getConditionSummary(rule: Rule): string {
@@ -857,6 +932,7 @@ export class AutoNoteMoverSettingTab extends PluginSettingTab {
       name: '',
       enabled: true,
       priority: this.plugin.settings.rules.length,
+      triggerMode: 'auto',
       conditions: [],
       logicOperator: 'AND',
       action: 'move',
