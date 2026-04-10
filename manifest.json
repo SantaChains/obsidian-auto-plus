@@ -6,5 +6,6 @@
 	"description": "增强版自动笔记处理器，支持 YAML 属性判断、多种操作类型（移动/复制/删除/重命名）和灵活的规则配置。",
 	"author": "SantaChains",
 	"authorUrl": "https://github.com/SantaChains/",
-	"isDesktopOnly": false
+	"isDesktopOnly": false,
+	"css": "styles.css"
 }

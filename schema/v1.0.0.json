@@ -1,0 +1,300 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://note-mv-plus.app/schema/v1.0.0.json",
+  "title": "Note MV Plus Schema",
+  "version": "1.0.0",
+  "description": "Note MV Plus 插件配置文件 Schema 定义",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+$",
+      "description": "配置版本号，遵循语义化版本"
+    },
+    "rules": {
+      "type": "array",
+      "description": "规则列表",
+      "items": { "$ref": "#/$defs/Rule" }
+    },
+    "actions": {
+      "type": "array",
+      "description": "操作列表",
+      "items": { "$ref": "#/$defs/Action" }
+    },
+    "templates": {
+      "type": "array",
+      "description": "模板列表",
+      "items": { "$ref": "#/$defs/Template" }
+    },
+    "settings": {
+      "$ref": "#/$defs/Settings"
+    }
+  },
+  "required": ["version", "rules", "actions", "templates", "settings"],
+  "$defs": {
+    "Rule": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "enabled": { "type": "boolean" },
+        "priority": { "type": "integer", "default": 0 },
+        "trigger": { "$ref": "#/$defs/Trigger" },
+        "source": { "$ref": "#/$defs/Source" },
+        "conditions": { "$ref": "#/$defs/Conditions" },
+        "actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Action" }
+        }
+      },
+      "required": ["name", "enabled", "trigger", "conditions"]
+    },
+    "Trigger": {
+      "type": "object",
+      "properties": {
+        "manual": {
+          "type": "boolean",
+          "description": "手动触发"
+        },
+        "auto": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "events": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["create", "modify", "delete", "rename"]
+              }
+            }
+          }
+        },
+        "cron": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "expressions": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "runOnStartup": { "type": "boolean" },
+            "interval": { "type": "integer", "description": "间隔分钟数" }
+          }
+        }
+      }
+    },
+    "Source": {
+      "type": "object",
+      "properties": {
+        "include": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SourceItem" }
+        },
+        "exclude": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/SourceItem" }
+        }
+      }
+    },
+    "SourceItem": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["file", "folder", "yaml", "metadata"]
+        },
+        "path": { "type": "string" },
+        "yaml": {
+          "type": "object",
+          "properties": {
+            "key": { "type": "string" },
+            "operator": { "type": "string" },
+            "value": {}
+          }
+        },
+        "metadata": {
+          "type": "object",
+          "properties": {
+            "tags": { "type": "boolean" },
+            "aliases": { "type": "boolean" },
+            "frontmatter": { "type": "object" }
+          }
+        }
+      },
+      "required": ["type"]
+    },
+    "Conditions": {
+      "type": "object",
+      "properties": {
+        "logic": {
+          "type": "string",
+          "enum": ["AND", "OR"]
+        },
+        "groups": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ConditionGroup" }
+        }
+      },
+      "required": ["logic", "groups"]
+    },
+    "ConditionGroup": {
+      "type": "object",
+      "properties": {
+        "logic": {
+          "type": "string",
+          "enum": ["AND", "OR"]
+        },
+        "conditions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Condition" }
+        }
+      },
+      "required": ["logic", "conditions"]
+    },
+    "Condition": {
+      "type": "object",
+      "properties": {
+        "field": {
+          "type": "string",
+          "enum": ["tag", "title", "yaml", "mtime", "path"]
+        },
+        "yamlKey": { "type": "string" },
+        "operator": {
+          "type": "string",
+          "enum": [
+            "equals",
+            "notEquals",
+            "exists",
+            "notExists",
+            "contains",
+            "startsWith",
+            "endsWith",
+            "matches",
+            "gt",
+            "gte",
+            "lt",
+            "lte",
+            "between",
+            "arrayContains",
+            "arrayNotContains",
+            "arrayHasAny",
+            "arrayHasAll"
+          ]
+        },
+        "value": {},
+        "valueType": {
+          "type": "string",
+          "enum": ["text", "list", "number", "checkbox", "date", "datetime", "tags", "aliases", "multitext", "unknown"]
+        }
+      },
+      "required": ["field", "operator"]
+    },
+    "Action": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": [
+            "move",
+            "copy",
+            "moveRename",
+            "copyRename",
+            "rename",
+            "delete",
+            "updateYaml",
+            "addTag",
+            "removeTag",
+            "createFile",
+            "appendContent",
+            "prependContent",
+            "replaceContent",
+            "executeCommand",
+            "showNotification",
+            "runScript",
+            "httpRequest",
+            "template"
+          ]
+        },
+        "params": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": ["id", "name", "type"]
+    },
+    "Template": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["rule", "action", "condition"]
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "required": ["id", "name", "type", "data"]
+    },
+    "Settings": {
+      "type": "object",
+      "properties": {
+        "logEnabled": {
+          "type": "boolean",
+          "default": true
+        },
+        "logRetention": {
+          "type": "integer",
+          "description": "日志保留天数",
+          "default": 7
+        },
+        "deleteMode": {
+          "type": "string",
+          "enum": ["permanent", "system-trash", "vault-trash"],
+          "default": "system-trash"
+        },
+        "concurrentMode": {
+          "type": "string",
+          "enum": ["sequential", "parallel"],
+          "default": "sequential"
+        },
+        "triggerMode": {
+          "type": "string",
+          "enum": ["auto", "manual"],
+          "default": "auto"
+        },
+        "allowMultipleActions": {
+          "type": "boolean",
+          "default": false
+        },
+        "useRegexForTags": {
+          "type": "boolean",
+          "default": false
+        },
+        "showNotifications": {
+          "type": "boolean",
+          "default": true
+        },
+        "statusBarIndicator": {
+          "type": "boolean",
+          "default": true
+        },
+        "globalExclude": {
+          "type": "object",
+          "properties": {
+            "folders": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "useRegex": { "type": "boolean" },
+            "excludeByPattern": { "type": "boolean" }
+          }
+        }
+      }
+    }
+  }
+}

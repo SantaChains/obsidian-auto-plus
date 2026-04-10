@@ -1,7 +1,8 @@
 // ***************************************************************************************
-// * 条件评估器 v2.0
+// * 条件评估器 v3.0
 // * 负责评估单个条件是否匹配
 // * 支持：类型推断、Key模式匹配、数组操作、数值比较
+// * 集成 YamlConditionEvaluator 支持完整表达式和分组逻辑
 // ***************************************************************************************
 
 import { CachedMetadata, TFile } from 'obsidian';
@@ -18,6 +19,7 @@ import {
   YamlValue,
   YamlValueOptions,
 } from './types';
+import { YamlConditionEvaluator, EvaluationContext } from './YamlConditionEvaluator';
 
 export interface EvaluatorOptions {
   useRegexForTags: boolean;
@@ -27,13 +29,36 @@ type TimeUnit = 'minutes' | 'hours' | 'days' | 'weeks' | 'months';
 
 export class ConditionEvaluator {
   private options: EvaluatorOptions;
+  private yamlEvaluator: YamlConditionEvaluator;
 
   constructor(options: EvaluatorOptions = { useRegexForTags: false }) {
     this.options = options;
+    this.yamlEvaluator = new YamlConditionEvaluator();
   }
 
   setOptions(options: Partial<EvaluatorOptions>): void {
     this.options = { ...this.options, ...options };
+  }
+
+  /**
+   * 构建评估上下文
+   */
+  private buildEvaluationContext(
+    fileName: string,
+    cacheTag: string[] | null,
+    fileCache: CachedMetadata | null,
+    file?: TFile,
+    content?: string
+  ): EvaluationContext {
+    return {
+      fileName,
+      filePath: file?.path || '',
+      frontmatter: fileCache?.frontmatter || {},
+      content: content || '',
+      tags: cacheTag || [],
+      ctime: file ? new Date(file.stat.ctime) : new Date(),
+      mtime: file ? new Date(file.stat.mtime) : new Date(),
+    };
   }
 
   evaluate(
@@ -41,9 +66,10 @@ export class ConditionEvaluator {
     fileName: string,
     cacheTag: string[] | null,
     fileCache: CachedMetadata | null,
-    file?: TFile
+    file?: TFile,
+    content?: string
   ): EvaluationResult {
-    const matched = this.evaluateCondition(condition, fileName, cacheTag, fileCache, file);
+    const matched = this.evaluateCondition(condition, fileName, cacheTag, fileCache, file, content);
     return {
       matched,
       condition,
@@ -56,7 +82,8 @@ export class ConditionEvaluator {
     fileName: string,
     cacheTag: string[] | null,
     fileCache: CachedMetadata | null,
-    file?: TFile
+    file?: TFile,
+    content?: string
   ): boolean {
     switch (condition.type) {
       case 'tag':
@@ -64,13 +91,48 @@ export class ConditionEvaluator {
       case 'title':
         return this.evaluateTitleCondition(condition, fileName);
       case 'yaml':
-        return this.evaluateYamlCondition(condition, fileCache);
+        return this.evaluateYamlConditionWithEvaluator(condition, fileCache, fileName, cacheTag, file, content);
       case 'mtime':
         return this.evaluateMtimeCondition(condition, file);
       case 'path':
         return this.evaluatePathCondition(condition, file);
+      case 'content':
+        return this.evaluateContentCondition(condition, content);
       default:
         return false;
+    }
+  }
+
+  /**
+   * 使用 YamlConditionEvaluator 评估 YAML 条件
+   */
+  private evaluateYamlConditionWithEvaluator(
+    condition: Condition,
+    fileCache: CachedMetadata | null,
+    fileName: string,
+    cacheTag: string[] | null,
+    file?: TFile,
+    content?: string
+  ): boolean {
+    if (!condition.yaml) {
+      return false;
+    }
+
+    const context = this.buildEvaluationContext(fileName, cacheTag, fileCache, file, content);
+    const result = this.yamlEvaluator.evaluate(condition.yaml, context);
+    return result.matched;
+  }
+
+  private evaluateContentCondition(condition: Condition, content?: string): boolean {
+    if (!condition.contentPattern || content === undefined) {
+      return false;
+    }
+
+    try {
+      const regex = new RegExp(condition.contentPattern);
+      return regex.test(content);
+    } catch {
+      return false;
     }
   }
 
@@ -581,6 +643,8 @@ export class ConditionEvaluator {
         return `修改时间不满足: ${condition.mtimePattern}`;
       case 'path':
         return `路径不匹配: ${condition.pathPattern}`;
+      case 'content':
+        return `正文内容不匹配: ${condition.contentPattern}`;
       default:
         return '未知条件类型';
     }

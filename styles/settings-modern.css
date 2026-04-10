@@ -1,0 +1,514 @@
+/* 
+ * Auto Plus Settings - 现代化 UI 样式
+ * 基于 UI-UX Pro Max 设计原则
+ */
+
+/* ============================================================================
+   设计令牌
+   ============================================================================ */
+
+.auto-plus-settings-header {
+  margin-bottom: 24px !important;
+}
+
+.auto-plus-title {
+  font-size: 24px !important;
+  font-weight: 700 !important;
+  color: var(--text-normal) !important;
+  letter-spacing: -0.02em !important;
+}
+
+/* ============================================================================
+   快速操作区
+   ============================================================================ */
+
+.auto-plus-quick-actions {
+  display: flex !important;
+  gap: 8px !important;
+  margin-bottom: 16px !important;
+  padding: 12px !important;
+  background: var(--background-secondary) !important;
+  border-radius: 6px !important;
+}
+
+.auto-plus-quick-actions button {
+  padding: 6px 12px !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  font-size: 13px !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  background: var(--background-secondary) !important;
+  color: var(--text-normal) !important;
+  transition: opacity 150ms !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 4px !important;
+}
+
+.auto-plus-quick-actions button:hover {
+  opacity: 0.85 !important;
+}
+
+.auto-plus-quick-actions button.mod-cta {
+  background: var(--interactive-accent) !important;
+  color: var(--text-on-accent) !important;
+}
+
+/* ============================================================================
+   全局设置区域
+   ============================================================================ */
+
+.auto-plus-global-settings {
+  background: var(--background-primary) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  margin-bottom: 20px !important;
+  transition: all 0.2s ease !important;
+}
+
+.auto-plus-global-settings[open] {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06) !important;
+}
+
+.auto-plus-global-settings summary {
+  transition: color 0.2s ease !important;
+}
+
+.auto-plus-global-settings summary:hover {
+  color: var(--text-accent) !important;
+}
+
+.auto-plus-settings-section {
+  margin-bottom: 24px !important;
+}
+
+.auto-plus-settings-section .setting-item {
+  padding: 8px 0 !important;
+}
+
+/* ============================================================================
+   分区标题
+   ============================================================================ */
+
+.auto-plus-section-title {
+  margin: 0 0 12px 0 !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: var(--text-accent) !important;
+}
+
+/* ============================================================================
+   规则卡片
+   ============================================================================ */
+
+.auto-plus-rule-card {
+  display: flex !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: 8px !important;
+  margin-bottom: 12px !important;
+  background: var(--background-primary) !important;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  overflow: hidden !important;
+}
+
+.auto-plus-rule-card.is-disabled {
+  opacity: 0.7 !important;
+}
+
+.auto-plus-rule-card.is-disabled .auto-plus-rule-header {
+  opacity: 0.7 !important;
+}
+
+.auto-plus-rule-card:hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+}
+
+.auto-plus-rule-status-bar {
+  width: 4px !important;
+  border-radius: 8px 0 0 8px !important;
+  flex-shrink: 0 !important;
+}
+
+.auto-plus-rule-status-bar.is-enabled {
+  background: var(--interactive-accent) !important;
+}
+
+.auto-plus-rule-status-bar.is-disabled {
+  background: var(--text-muted) !important;
+}
+
+.auto-plus-rule-header {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+  padding: 12px !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+  cursor: pointer !important;
+  transition: background 0.2s ease !important;
+}
+
+.auto-plus-rule-header:hover {
+  background: var(--background-modifier-hover) !important;
+}
+
+.auto-plus-rule-header.is-expanded {
+  border-bottom: 1px solid var(--background-modifier-border) !important;
+}
+
+.auto-plus-rule-header input[type="checkbox"] {
+  cursor: pointer !important;
+  margin: 0 !important;
+  flex-shrink: 0 !important;
+}
+
+.auto-plus-rule-summary {
+  flex: 1 !important;
+  cursor: pointer !important;
+  min-width: 0 !important;
+}
+
+.auto-plus-rule-title {
+  font-weight: 500 !important;
+  font-size: 14px !important;
+  color: var(--text-normal) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.auto-plus-rule-title.is-disabled {
+  color: var(--text-muted) !important;
+}
+
+.auto-plus-rule-desc {
+  font-size: 12px !important;
+  color: var(--text-muted) !important;
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+}
+
+.auto-plus-rule-body {
+  padding: 12px !important;
+}
+
+.auto-plus-rule-actions {
+  display: flex !important;
+  gap: 4px !important;
+  flex-shrink: 0 !important;
+}
+
+.auto-plus-rule-actions button {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 6px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s ease !important;
+  background: transparent !important;
+  color: var(--text-muted) !important;
+  border: none !important;
+  cursor: pointer !important;
+}
+
+.auto-plus-rule-actions button:hover {
+  background: var(--background-modifier-hover) !important;
+  opacity: 0.7 !important;
+}
+
+.auto-plus-rule-actions button.auto-plus-delete-btn:hover {
+  color: var(--text-accent) !important;
+}
+
+.auto-plus-rule-actions .auto-plus-expand-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  color: var(--text-muted) !important;
+}
+
+/* ============================================================================
+   条件项
+   ============================================================================ */
+
+.auto-plus-condition-item {
+  border: 1px dashed var(--text-muted) !important;
+  border-radius: 6px !important;
+  padding: 12px !important;
+  margin-bottom: 8px !important;
+  background: var(--background-secondary) !important;
+  transition: all 0.2s ease !important;
+  position: relative !important;
+}
+
+.auto-plus-condition-item::before {
+  content: '' !important;
+  position: absolute !important;
+  left: 0 !important;
+  top: 0 !important;
+  bottom: 0 !important;
+  width: 3px !important;
+  border-radius: 3px !important;
+  background: currentColor !important;
+  opacity: 0.6 !important;
+}
+
+.auto-plus-condition-item:hover {
+  transform: translateX(4px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
+}
+
+.auto-plus-condition-header {
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  margin-bottom: 8px !important;
+}
+
+/* ============================================================================
+   定时设置区域
+   ============================================================================ */
+
+.schedule-settings {
+  padding: 12px !important;
+  background: var(--background-secondary) !important;
+  border-radius: 8px !important;
+  margin-bottom: 16px !important;
+}
+
+/* ============================================================================
+   手动模式提示
+   ============================================================================ */
+
+.manual-mode-hint {
+  padding: 8px 12px !important;
+  background: var(--background-secondary) !important;
+  border-radius: 6px !important;
+  margin-bottom: 12px !important;
+  font-size: 13px !important;
+  color: var(--text-muted) !important;
+}
+
+.manual-mode-hint kbd {
+  background: var(--background-primary) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: 4px !important;
+  padding: 2px 6px !important;
+  font-size: 12px !important;
+}
+
+/* ============================================================================
+   排除文件夹区域
+   ============================================================================ */
+
+.auto-plus-excluded-settings {
+  background: var(--background-primary) !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  border-radius: 8px !important;
+  padding: 16px !important;
+  margin-top: 20px !important;
+}
+
+.auto-plus-excluded-settings summary {
+  cursor: pointer !important;
+  font-weight: 600 !important;
+  padding: 8px 0 !important;
+  transition: all 0.2s ease !important;
+}
+
+.auto-plus-excluded-settings summary:hover {
+  color: var(--text-accent) !important;
+  background: var(--background-modifier-hover) !important;
+  padding: 8px !important;
+  border-radius: 6px !important;
+  margin: -8px !important;
+}
+
+/* ============================================================================
+   空状态
+   ============================================================================ */
+
+.auto-plus-empty-state {
+  text-align: center !important;
+  padding: 40px !important;
+  color: var(--text-muted) !important;
+}
+
+/* ============================================================================
+   设置项
+   ============================================================================ */
+
+.setting-item {
+  padding: 12px 0 !important;
+  border-bottom: 1px solid var(--background-modifier-border-hover) !important;
+  transition: background 0.2s ease !important;
+}
+
+.setting-item:hover {
+  background: var(--background-modifier-hover) !important;
+  margin: 0 -12px !important;
+  padding-left: 12px !important;
+  padding-right: 12px !important;
+  border-radius: 6px !important;
+}
+
+.setting-item-name {
+  font-weight: 500 !important;
+  color: var(--text-normal) !important;
+  transition: color 0.2s ease !important;
+}
+
+.setting-item:hover .setting-item-name {
+  color: var(--text-accent) !important;
+}
+
+.setting-item-description {
+  color: var(--text-muted) !important;
+  font-size: 13px !important;
+  line-height: 1.5 !important;
+}
+
+/* ============================================================================
+   输入框和下拉菜单
+   ============================================================================ */
+
+.dropdown,
+.setting-text {
+  transition: all 0.2s ease !important;
+  border: 1px solid var(--background-modifier-border) !important;
+  background: var(--background-primary) !important;
+}
+
+.dropdown:hover,
+.setting-text:hover {
+  border-color: var(--interactive-accent) !important;
+  box-shadow: 0 0 0 2px rgba(var(--interactive-accent-rgb), 0.1) !important;
+}
+
+.dropdown:focus,
+.setting-text:focus {
+  border-color: var(--interactive-accent) !important;
+  box-shadow: 0 0 0 3px rgba(var(--interactive-accent-rgb), 0.15) !important;
+  outline: none !important;
+}
+
+/* ============================================================================
+   开关
+   ============================================================================ */
+
+.checkbox-container {
+  transition: all 0.2s ease !important;
+  background: var(--background-modifier-border) !important;
+}
+
+.checkbox-container.is-enabled {
+  background: var(--interactive-accent) !important;
+}
+
+/* ============================================================================
+   响应式设计
+   ============================================================================ */
+
+@media (max-width: 768px) {
+  .auto-plus-quick-actions {
+    flex-wrap: wrap !important;
+  }
+  
+  .auto-plus-quick-actions button {
+    flex: 1 1 45% !important;
+    margin-bottom: 8px !important;
+  }
+  
+  .auto-plus-rule-header {
+    flex-wrap: wrap !important;
+  }
+  
+  .auto-plus-rule-actions {
+    width: 100% !important;
+    justify-content: flex-end !important;
+    margin-top: 8px !important;
+  }
+}
+
+/* ============================================================================
+   深色/浅色模式
+   ============================================================================ */
+
+.theme-dark .auto-plus-rule-card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2) !important;
+}
+
+.theme-dark .auto-plus-rule-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3) !important;
+}
+
+.theme-dark .auto-plus-quick-actions {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15) !important;
+}
+
+.theme-light .auto-plus-rule-card {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+}
+
+.theme-light .auto-plus-rule-card:hover {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
+}
+
+.theme-light .auto-plus-quick-actions {
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06) !important;
+}
+
+/* ============================================================================
+   动画
+   ============================================================================ */
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.auto-plus-rule-card,
+.auto-plus-global-settings,
+.auto-plus-excluded-settings {
+  animation: slideIn 0.3s ease !important;
+}
+
+/* ============================================================================
+   状态
+   ============================================================================ */
+
+.success-state {
+  border-color: #22c55e !important;
+  background: rgba(34, 197, 94, 0.1) !important;
+}
+
+.error-state {
+  border-color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.1) !important;
+}
+
+.warning-state {
+  border-color: #f59e0b !important;
+  background: rgba(245, 158, 11, 0.1) !important;
+}
+
+/* ============================================================================
+   分隔线
+   ============================================================================ */
+
+.auto-plus-divider {
+  height: 1px !important;
+  background: var(--background-modifier-border) !important;
+  margin: 16px 0 !important;
+}

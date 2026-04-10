@@ -9,7 +9,7 @@ import { TFile, CachedMetadata } from 'obsidian';
 // 条件类型
 // ============================================================================
 
-export type ConditionType = 'tag' | 'title' | 'yaml' | 'mtime' | 'path';
+export type ConditionType = 'tag' | 'title' | 'yaml' | 'mtime' | 'path' | 'content';
 
 export type ActionType =
   | 'move'
@@ -114,6 +114,7 @@ export interface Condition {
   yaml?: YamlCondition;
   mtimePattern?: string;
   pathPattern?: string;
+  contentPattern?: string;  // 正文内容匹配
 }
 
 // ============================================================================
@@ -167,19 +168,25 @@ export interface Rule {
   name: string;
   enabled: boolean;
   priority: number;
-  triggerMode: RuleTriggerMode;   // 触发模式: auto/manual/scheduled
-  schedule?: RuleSchedule;        // 定时配置
+  triggerMode: RuleTriggerMode;
+  schedule?: RuleSchedule;
   conditions: Condition[];
   logicOperator: LogicOperator;
   action: ActionType;
   target: TargetConfig;
   sourceFilter?: SourceFolderRule;
   excludeFolders?: string[];
+  loopConfig?: LoopConfig;
 }
 
 // ============================================================================
 // 插件设置
 // ============================================================================
+
+export interface LogRetentionConfig {
+  maxFiles: number;
+  maxDays: number;
+}
 
 export interface PluginSettings {
   triggerMode: 'auto' | 'manual';
@@ -189,6 +196,19 @@ export interface PluginSettings {
   statusBarIndicator: boolean;
   rules: Rule[];
   globalExclude: ExcludeConfig;
+  logEnabled: boolean;
+  logRetention: LogRetentionConfig;
+  deleteMode: 'permanent' | 'trash';
+  concurrentMode: 'sequential' | 'parallel';
+  aiEnabled: boolean;
+  httpEnabled: boolean;
+  mcpEnabled: boolean;
+  dryRunEnabled: boolean;
+  batchProgressEnabled: boolean;
+  defaultErrorStrategy: ErrorStrategy;
+  maxConcurrentRules: number;
+  startupRunEnabled: boolean;
+  safeMode: boolean;
 }
 
 export const DEFAULT_SETTINGS: PluginSettings = {
@@ -203,6 +223,19 @@ export const DEFAULT_SETTINGS: PluginSettings = {
     useRegex: false,
     excludeByPattern: false,
   },
+  logEnabled: true,
+  logRetention: { maxFiles: 30, maxDays: 7 },
+  deleteMode: 'trash',
+  concurrentMode: 'sequential',
+  aiEnabled: false,
+  httpEnabled: false,
+  mcpEnabled: false,
+  dryRunEnabled: true,
+  batchProgressEnabled: true,
+  defaultErrorStrategy: 'stop',
+  maxConcurrentRules: 3,
+  startupRunEnabled: false,
+  safeMode: false,
 };
 
 // ============================================================================
@@ -284,3 +317,231 @@ export interface BatchPreviewResult {
   matchedFiles: TFile[];
   total: number;
 }
+
+// ============================================================================
+// SourceFilter 白名单模型
+// ============================================================================
+
+export type SourceItemType = 'file' | 'folder' | 'yaml' | 'metadata';
+
+export interface SourceItem {
+  type: SourceItemType;
+  path?: string;
+  yaml?: {
+    key: string;
+    operator: string;
+    value: YamlValue;
+  };
+  metadata?: {
+    field: 'ctime' | 'mtime';
+    operator: string;
+    value: string;
+  };
+}
+
+export interface SourceFilter {
+  include: SourceItem[];
+  exclude: SourceItem[];
+}
+
+// ============================================================================
+// LoopConfig 循环配置
+// ============================================================================
+
+export type LoopType = 'forEach' | 'while' | 'doWhile';
+
+export interface LoopConfig {
+  type: LoopType;
+  items?: unknown[] | string;
+  variable?: string;
+  condition?: string;
+  maxIterations?: number;
+  continueOnError?: boolean;
+}
+
+// ============================================================================
+// AIRequest AI 请求
+// ============================================================================
+
+export type AIProvider = 'openai' | 'anthropic' | 'custom';
+export type AIOperation = 'summarize' | 'classify' | 'generate' | 'extract' | 'translate';
+
+export interface AIRequest {
+  provider: AIProvider;
+  operation: AIOperation;
+  prompt?: string;
+  model?: string;
+  outputVar?: string;
+  apiKey?: string;
+  endpoint?: string;
+}
+
+// ============================================================================
+// HTTPRequest HTTP 请求
+// ============================================================================
+
+export type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'DELETE';
+
+export interface HTTPRequest {
+  method: HTTPMethod;
+  url: string;
+  headers?: Record<string, string>;
+  body?: Record<string, unknown>;
+  timeout?: number;
+  outputVar?: string;
+}
+
+export interface HTTPResponse {
+  success: boolean;
+  status?: number;
+  statusText?: string;
+  headers?: Record<string, string>;
+  body?: unknown;
+  error?: string;
+}
+
+// ============================================================================
+// MCPConfig MCP 配置
+// ============================================================================
+
+export interface MCPConfig {
+  enabled: boolean;
+  port?: number;
+  tools: string[];
+}
+
+// ============================================================================
+// DryRunConfig 模拟配置
+// ============================================================================
+
+export interface DryRunConfig {
+  enabled: boolean;
+  preview: {
+    showAffectedFiles: boolean;
+    showActions: boolean;
+    showChanges: boolean;
+  };
+}
+
+// ============================================================================
+// BatchProgress 批量进度
+// ============================================================================
+
+export interface BatchProgress {
+  enabled: boolean;
+  showDialog: boolean;
+  canCancel: boolean;
+  updateInterval: number;
+}
+
+// ============================================================================
+// ErrorHandling 错误恢复
+// ============================================================================
+
+export type ErrorStrategy = 'retry' | 'rollback' | 'skip' | 'stop';
+
+export interface ErrorHandling {
+  strategy: ErrorStrategy;
+  maxRetries?: number;
+  retryDelay?: number;
+  rollbackOnFailure?: boolean;
+}
+
+// ============================================================================
+// ActionType 扩展
+// ============================================================================
+
+export type ActionTypeExtended =
+  | ActionType
+  | 'content.replace'
+  | 'content.insert'
+  | 'content.extract'
+  | 'http.request'
+  | 'ai.request';
+
+// 内容操作参数类型
+export interface ContentReplaceParams {
+  pattern: string;
+  replacement: string;
+  flags?: string;
+  useRegex?: boolean;
+}
+
+export interface ContentInsertParams {
+  position: 'start' | 'end' | number;
+  content: string;
+}
+
+export interface ContentExtractParams {
+  pattern: string;
+  group?: number;
+}
+
+export interface HttpRequestParams {
+  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  url: string;
+  headers?: Record<string, string>;
+  body?: Record<string, unknown>;
+  timeout?: number;
+}
+
+export interface AIRequestParams {
+  provider: 'openai' | 'anthropic' | 'custom';
+  operation: 'summarize' | 'classify' | 'generate' | 'extract' | 'translate';
+  prompt: string;
+  model?: string;
+  apiKey?: string;
+}
+
+// ============================================================================
+// ActionResult 操作结果
+// ============================================================================
+
+export interface ActionResult {
+  success: boolean;
+  action: string;
+  fileName: string;
+  message?: string;
+  error?: string;
+}
+
+// ============================================================================
+// Action 操作接口
+// ============================================================================
+
+export type ActionSubType = 'file' | 'metadata' | 'content' | 'system' | 'ai' | 'http' | 'mcp';
+
+export interface Action {
+  id: string;
+  name: string;
+  type: ActionSubType;
+  actionType: ActionType | ActionTypeExtended;
+  params: Record<string, unknown>;
+  enabled: boolean;
+  description?: string;
+  useTemplate?: string;
+  dryRun?: boolean;
+}
+
+// ============================================================================
+// Template 模板接口
+// ============================================================================
+
+export type TemplateType = 'rule' | 'action' | 'condition';
+
+export interface Template {
+  id: string;
+  name: string;
+  type: TemplateType;
+  description?: string;
+  data: Partial<Rule> | Partial<Action> | Condition | SourceFilter;
+  tags?: string[];
+  createdAt?: number;
+  updatedAt?: number;
+}
+
+// ============================================================================
+// Settings 别名 (兼容旧命名)
+// ============================================================================
+
+export type Settings = PluginSettings;

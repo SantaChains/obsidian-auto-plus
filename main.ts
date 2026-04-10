@@ -6,6 +6,7 @@
 import { MarkdownView, Plugin, TFile, Notice, TAbstractFile, normalizePath, getAllTags, CachedMetadata, Modal } from 'obsidian';
 import { RuleEngine, RuleEngineOptions } from './core/RuleEngine';
 import { ActionExecutor, ExecutorOptions } from './core/ActionExecutor';
+import { TaskScheduler } from './core/Scheduler';
 import { FileService } from './services/FileService';
 import { PluginSettings, Rule, BatchMode, BatchStats, BatchProcessResult, BatchPreviewResult, FileProcessResult, DEFAULT_SETTINGS } from './core/types';
 import { AutoNoteMoverSettingTab } from './settings/SettingsTab';
@@ -16,6 +17,7 @@ export default class AutoNoteMover extends Plugin {
   public ruleEngine!: RuleEngine;
   private actionExecutor!: ActionExecutor;
   private fileService!: FileService;
+  private scheduler!: TaskScheduler;
   private triggerIndicator: HTMLElement | null = null;
 
   public getFileService(): FileService {
@@ -27,12 +29,165 @@ export default class AutoNoteMover extends Plugin {
     this.initializeServices();
     this.registerEventHandlers();
     this.registerCommands();
+    this.setupScheduler();
     this.setupStatusBar();
+    this.loadStyles();
     this.addSettingTab(new AutoNoteMoverSettingTab(this.app, this));
   }
 
   onunload() {
+    this.scheduler?.stop();
     this.triggerIndicator = null;
+    this.unloadStyles();
+  }
+
+  private loadStyles(): void {
+    const styleEl = document.createElement('style');
+    styleEl.id = 'auto-plus-modern-styles';
+    styleEl.textContent = `
+      /* Auto Plus Modern UI Styles */
+      .auto-plus-settings-header {
+        margin-bottom: 24px !important;
+      }
+
+      .auto-plus-title {
+        font-size: 24px !important;
+        font-weight: 700 !important;
+        color: var(--text-normal) !important;
+        letter-spacing: -0.02em !important;
+      }
+
+      .auto-plus-quick-actions {
+        background: linear-gradient(135deg, var(--background-primary) 0%, var(--background-secondary) 100%) !important;
+        border: 1px solid var(--background-modifier-border) !important;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+        backdrop-filter: blur(8px) !important;
+      }
+
+      .auto-plus-quick-actions button {
+        transition: all 0.2s ease !important;
+        font-weight: 500 !important;
+        border: 1px solid transparent !important;
+      }
+
+      .auto-plus-quick-actions button:hover {
+        transform: translateY(-1px) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08) !important;
+      }
+
+      .auto-plus-rule-card {
+        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+        overflow: hidden !important;
+      }
+
+      .auto-plus-rule-card:hover {
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08) !important;
+      }
+
+      .auto-plus-rule-header {
+        transition: background 0.2s ease !important;
+        cursor: pointer !important;
+      }
+
+      .auto-plus-rule-header:hover {
+        background: var(--background-modifier-hover) !important;
+      }
+
+      .auto-plus-rule-actions button {
+        width: 32px !important;
+        height: 32px !important;
+        border-radius: 6px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        transition: all 0.2s ease !important;
+        background: transparent !important;
+        color: var(--text-muted) !important;
+      }
+
+      .auto-plus-rule-actions button:hover {
+        background: var(--background-modifier-hover) !important;
+        color: var(--text-normal) !important;
+        transform: scale(1.05) !important;
+      }
+
+      .auto-plus-rule-actions button.auto-plus-delete-btn:hover {
+        background: rgba(239, 68, 68, 0.1) !important;
+        color: #ef4444 !important;
+      }
+
+      .auto-plus-condition-item {
+        transition: all 0.2s ease !important;
+        position: relative !important;
+      }
+
+      .auto-plus-condition-item::before {
+        content: '' !important;
+        position: absolute !important;
+        left: 0 !important;
+        top: 0 !important;
+        bottom: 0 !important;
+        width: 3px !important;
+        border-radius: 3px !important;
+        background: currentColor !important;
+        opacity: 0.6 !important;
+      }
+
+      .auto-plus-condition-item:hover {
+        transform: translateX(4px) !important;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06) !important;
+      }
+
+      .setting-item {
+        padding: 12px 0 !important;
+        border-bottom: 1px solid var(--background-modifier-border-hover) !important;
+        transition: background 0.2s ease !important;
+      }
+
+      .setting-item:hover {
+        background: var(--background-modifier-hover) !important;
+        margin: 0 -12px !important;
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+        border-radius: 6px !important;
+      }
+
+      .setting-item-name {
+        font-weight: 500 !important;
+        color: var(--text-normal) !important;
+        transition: color 0.2s ease !important;
+      }
+
+      .setting-item:hover .setting-item-name {
+        color: var(--text-accent) !important;
+      }
+
+      @keyframes slideIn {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .auto-plus-rule-card,
+      .auto-plus-global-settings,
+      .auto-plus-excluded-settings {
+        animation: slideIn 0.3s ease !important;
+      }
+    `;
+    document.head.appendChild(styleEl);
+  }
+
+  private unloadStyles(): void {
+    const styleEl = document.getElementById('auto-plus-modern-styles');
+    if (styleEl) {
+      styleEl.remove();
+    }
   }
 
   private initializeServices(): void {
@@ -42,7 +197,7 @@ export default class AutoNoteMover extends Plugin {
       useRegexForTags: this.settings.useRegexForTags,
       allowMultipleActions: this.settings.allowMultipleActions,
     };
-    this.ruleEngine = new RuleEngine(engineOptions);
+    this.ruleEngine = new RuleEngine(this.app, engineOptions);
     this.ruleEngine.setRules(this.settings.rules);
 
     const executorOptions: ExecutorOptions = {
@@ -62,6 +217,29 @@ export default class AutoNoteMover extends Plugin {
     this.actionExecutor.setOptions({
       showNotifications: this.settings.showNotifications,
     });
+
+    // 更新调度器
+    this.setupScheduler();
+  }
+
+  /**
+   * 设置定时任务调度器
+   */
+  private setupScheduler(): void {
+    if (!this.scheduler) {
+      this.scheduler = new TaskScheduler(this.app, this);
+    }
+
+    // 重新注册所有定时规则
+    const scheduledRules = this.settings.rules.filter(
+      r => r.enabled && r.triggerMode === 'scheduled' && r.schedule
+    );
+
+    scheduledRules.forEach(rule => this.scheduler.register(rule));
+
+    // 启动调度器
+    this.scheduler.start();
+    console.log(`[Auto Plus] 调度器已启动，${scheduledRules.length} 个定时任务`);
   }
 
   private registerEventHandlers(): void {
@@ -91,6 +269,13 @@ export default class AutoNoteMover extends Plugin {
 
     // 为每个手动规则注册独立命令
     this.registerManualRuleCommands();
+
+    // 查看定时任务状态
+    this.addCommand({
+      id: 'view-scheduled-tasks',
+      name: '查看定时任务状态',
+      callback: () => this.viewScheduledTasks(),
+    });
 
     this.addCommand({
       id: 'Toggle-Auto-Manual',
@@ -165,6 +350,36 @@ export default class AutoNoteMover extends Plugin {
     } else {
       new Notice(`规则 "${rule.name}" 不匹配当前文件`);
     }
+  }
+
+  /**
+   * 执行定时规则（public 供 Scheduler 调用）
+   */
+  public async executeScheduledRule(ruleId: string): Promise<void> {
+    const rule = this.settings.rules.find(r => r.id === ruleId);
+    if (!rule) {
+      console.error('[Auto Plus] 未找到定时规则:', ruleId);
+      return;
+    }
+
+    console.log(`[Auto Plus] 执行定时规则：${rule.name}`);
+
+    // 获取所有文件并执行
+    const files = this.app.vault.getMarkdownFiles();
+    let executedCount = 0;
+
+    for (const file of files) {
+      const fileCache = this.app.metadataCache.getFileCache(file);
+      const results = this.ruleEngine.evaluateFile(file, fileCache);
+
+      const targetResult = results.find(r => r.rule.id === rule.id && r.matched);
+      if (targetResult) {
+        await this.actionExecutor.execute({ rule, file, fileFullName: file.basename + '.' + file.extension });
+        executedCount++;
+      }
+    }
+
+    new Notice(`定时规则 "${rule.name}" 执行完成，处理了 ${executedCount} 个文件`);
   }
 
   private setupStatusBar(): void {
@@ -264,6 +479,34 @@ export default class AutoNoteMover extends Plugin {
         });
       }
     }
+  }
+
+  /**
+   * 查看定时任务状态
+   */
+  private viewScheduledTasks(): void {
+    const tasks = this.scheduler?.getTasks() || [];
+    
+    if (tasks.length === 0) {
+      new Notice('暂无定时任务');
+      return;
+    }
+
+    const taskInfo = tasks.map(task => {
+      const nextRun = task.nextRun ? new Date(task.nextRun).toLocaleString() : '未设置';
+      const lastRun = task.lastRun ? new Date(task.lastRun).toLocaleString() : '未执行';
+      return `${task.ruleName}\n  下次执行：${nextRun}\n  上次执行：${lastRun}`;
+    }).join('\n\n');
+
+    // 创建模态框显示
+    const modal = new Modal(this.app);
+    modal.titleEl.setText('定时任务状态');
+    
+    const content = modal.contentEl.createDiv();
+    content.style.cssText = 'white-space: pre-wrap; font-family: monospace; font-size: 13px;';
+    content.setText(taskInfo);
+    
+    modal.open();
   }
 
   private executeManualCommand(view: MarkdownView): void {
